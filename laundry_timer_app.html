@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smart Laundry Timer</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            font-family: 'Prompt', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Pulse glow animation for active state */
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 15px rgba(14, 165, 233, 0.3); }
+            50% { box-shadow: 0 0 30px rgba(14, 165, 233, 0.6); }
+        }
+        .timer-active {
+            animation: pulse-glow 2s infinite;
+        }
+
+        /* Custom scrollbar for logs */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between items-center p-4 sm:p-6 select-none">
+
+    <!-- Top Bar Header -->
+    <header class="w-full max-w-md flex justify-between items-center mb-4">
+        <div class="flex items-center gap-2">
+            <div class="p-2 bg-sky-500/10 border border-sky-500/20 rounded-xl text-sky-400">
+                <i data-lucide="washing-machine" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight text-slate-100">Laundry Timer</h1>
+                <p class="text-xs text-slate-400">ตัวจับเวลาซักผ้ากึ่งอัตโนมัติ</p>
+            </div>
+        </div>
+        <button onclick="toggleSoundTest()" class="p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-400 hover:text-slate-200 active:scale-95 transition-all" title="ทดสอบเสียงกริ่ง">
+            <i data-lucide="bell-ring" class="w-5 h-5"></i>
+        </button>
+    </header>
+
+    <!-- Main Container -->
+    <main class="w-full max-w-md flex-1 flex flex-col justify-center space-y-5">
+
+        <!-- Progress Overview Card -->
+        <div class="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4 backdrop-blur-md shadow-xl">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">ความคืบหน้าภาพรวม</span>
+                <span id="roundBadge" class="text-xs font-semibold bg-sky-500/20 text-sky-400 border border-sky-500/30 px-2.5 py-0.5 rounded-full">
+                    รอบที่ 1 / 6
+                </span>
+            </div>
+            
+            <!-- Step Timeline Bars -->
+            <div class="grid grid-cols-6 gap-1.5 my-2" id="roundTimeline">
+                <!-- Timeline bars populated by JS -->
+            </div>
+
+            <div class="flex justify-between text-xs text-slate-400 mt-2 font-mono" id="timelineSubtext">
+                <span>รอบ 1-5: เติม/ปั่น/ปล่อย</span>
+                <span class="text-pink-400">รอบ 6: น้ำยาปรับผ้านุ่ม</span>
+            </div>
+        </div>
+
+        <!-- Main Display Box -->
+        <div id="mainTimerCard" class="bg-slate-900/90 border border-slate-800/80 rounded-3xl p-6 text-center shadow-2xl relative overflow-hidden transition-all duration-300">
+            <!-- Phase Indicator Badge -->
+            <div id="phaseBadge" class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-sky-400 text-sm font-medium mb-3">
+                <i id="phaseIcon" data-lucide="droplet" class="w-4 h-4"></i>
+                <span id="phaseText">พร้อมเริ่ม: เติมน้ำ</span>
+            </div>
+
+            <!-- Big Countdown Timer -->
+            <div class="my-3">
+                <div id="timeDisplay" class="text-6xl sm:text-7xl font-bold font-mono tracking-tight text-white drop-shadow-md">
+                    04:00
+                </div>
+            </div>
+
+            <!-- Sub Progress Bar for Current Step -->
+            <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden mb-6 border border-slate-800">
+                <div id="stepProgressBar" class="bg-sky-500 h-full w-0 transition-all duration-300"></div>
+            </div>
+
+            <!-- Primary Action Button -->
+            <button id="mainBtn" onclick="handleMainAction()" class="w-full py-4 px-6 rounded-2xl bg-sky-500 hover:bg-sky-400 active:scale-[0.98] text-slate-950 font-bold text-lg shadow-lg shadow-sky-500/25 transition-all flex items-center justify-center gap-2">
+                <i data-lucide="play" class="w-5 h-5 fill-current"></i>
+                <span id="mainBtnText">เริ่มจับเวลา</span>
+            </button>
+
+            <!-- Reset Button (Secondary) -->
+            <div class="mt-3 flex justify-center">
+                <button onclick="confirmReset()" class="text-xs text-slate-500 hover:text-red-400 py-1 px-3 rounded-lg flex items-center gap-1 transition-colors">
+                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                    <span>รีเซ็ตระบบทั้งหมด</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Step List Preview Card -->
+        <div class="bg-slate-900/60 border border-slate-800/60 rounded-2xl p-4">
+            <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <i data-lucide="list-checks" class="w-4 h-4 text-sky-400"></i>
+                ขั้นตอนในรอบปัจจุบัน
+            </h3>
+            <div id="currentStepList" class="space-y-2">
+                <!-- Current round steps injected by JS -->
+            </div>
+        </div>
+
+        <!-- System Activity Log -->
+        <div class="bg-slate-900/40 border border-slate-800/40 rounded-2xl p-3">
+            <div class="flex justify-between items-center mb-1.5 px-1">
+                <span class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">ประวัติบันทึกเวลา</span>
+                <span id="logCount" class="text-[10px] text-slate-600 font-mono">0 รายการ</span>
+            </div>
+            <div id="logBox" class="text-xs font-mono text-slate-400 space-y-1 max-h-24 overflow-y-auto pr-1">
+                <div class="text-slate-600 italic">พร้อมทำงาน...</div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="w-full max-w-md text-center py-3 text-[11px] text-slate-600">
+        Laundry Multi-Step Timer &bull; Personal Edition
+    </footer>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // --- Workflow Configuration ---
+        // Rounds 1-5: Normal Wash Loops
+        const normalRoundSteps = [
+            { id: 'fill', name: 'เติมน้ำ', duration: 4 * 60, icon: 'droplet', color: 'text-sky-400' },
+            { id: 'wash', name: 'ปั่น (ซัก/ล้าง)', duration: 5 * 60, icon: 'rotate-cw', color: 'text-indigo-400' },
+            { id: 'drain', name: 'ปล่อยน้ำออก', duration: 2 * 60, icon: 'waves', color: 'text-amber-400' }
+        ];
+
+        // Round 6: Softener Final Loop
+        const finalRoundSteps = [
+            { id: 'softener_fill', name: 'เติมน้ำ + ใส่น้ำยาปรับผ้านุ่ม', duration: 1 * 60, icon: 'sparkles', color: 'text-pink-400' },
+            { id: 'soak', name: 'รอแช่น้ำยาปรับผ้านุ่ม', duration: 10 * 60, icon: 'hourglass', color: 'text-purple-400' }
+        ];
+
+        // --- App State ---
+        let currentRound = 1; // 1 to 6
+        let currentStepIndex = 0; // 0 to steps.length - 1
+        let timeLeft = normalRoundSteps[0].duration;
+        let totalStepDuration = normalRoundSteps[0].duration;
+        let timerInterval = null;
+        let appState = 'IDLE'; // IDLE, RUNNING, PAUSED, FINISHED_STEP, ALL_COMPLETED
+
+        // Web Audio Context for Bell Sounds
+        let audioCtx = null;
+
+        // --- Initialization ---
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            initTimelineUI();
+            updateDisplay();
+        });
+
+        function getStepsForRound(round) {
+            return round <= 5 ? normalRoundSteps : finalRoundSteps;
+        }
+
+        function getCurrentStep() {
+            const steps = getStepsForRound(currentRound);
+            return steps[currentStepIndex];
+        }
+
+        // --- UI Rendering ---
+        function initTimelineUI() {
+            const container = document.getElementById('roundTimeline');
+            container.innerHTML = '';
+            for (let i = 1; i <= 6; i++) {
+                const bar = document.createElement('div');
+                bar.id = `timeline-round-${i}`;
+                bar.className = `h-2 rounded-full transition-all duration-300 ${i === 1 ? 'bg-sky-500 ring-2 ring-sky-500/30' : 'bg-slate-800'}`;
+                container.appendChild(bar);
+            }
+        }
+
+        function updateTimelineUI() {
+            for (let i = 1; i <= 6; i++) {
+                const bar = document.getElementById(`timeline-round-${i}`);
+                if (!bar) continue;
+
+                if (i < currentRound) {
+                    bar.className = 'h-2 rounded-full bg-emerald-500';
+                } else if (i === currentRound) {
+                    bar.className = i === 6 
+                        ? 'h-2 rounded-full bg-pink-500 ring-2 ring-pink-500/30' 
+                        : 'h-2 rounded-full bg-sky-500 ring-2 ring-sky-500/30';
+                } else {
+                    bar.className = 'h-2 rounded-full bg-slate-800';
+                }
+            }
+        }
+
+        function renderStepListUI() {
+            const container = document.getElementById('currentStepList');
+            container.innerHTML = '';
+            const steps = getStepsForRound(currentRound);
+
+            steps.forEach((step, idx) => {
+                const isCurrent = idx === currentStepIndex;
+                const isPast = idx < currentStepIndex;
+
+                const item = document.createElement('div');
+                item.className = `flex items-center justify-between p-2.5 rounded-xl border text-xs transition-all ${
+                    isCurrent 
+                        ? 'bg-slate-800/90 border-sky-500/40 text-slate-100 font-medium shadow-sm' 
+                        : isPast 
+                            ? 'bg-slate-900/40 border-slate-800/40 text-slate-500 line-through' 
+                            : 'bg-slate-900/20 border-slate-800/20 text-slate-400'
+                }`;
+
+                const formatMin = Math.floor(step.duration / 60);
+
+                item.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
+                            isPast ? 'bg-emerald-500/20 text-emerald-400' : isCurrent ? 'bg-sky-500/20 text-sky-400' : 'bg-slate-800 text-slate-500'
+                        }">
+                            ${isPast ? '✓' : idx + 1}
+                        </span>
+                        <span>${step.name}</span>
+                    </div>
+                    <span class="font-mono text-[11px] ${isCurrent ? 'text-sky-400 font-bold' : 'text-slate-500'}">${formatMin} นาที</span>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function updateDisplay() {
+            const step = getCurrentStep();
+            
+            // Round Badge & Subtext
+            const roundBadge = document.getElementById('roundBadge');
+            roundBadge.innerText = `รอบที่ ${currentRound} / 6`;
+            if (currentRound === 6) {
+                roundBadge.className = "text-xs font-semibold bg-pink-500/20 text-pink-400 border border-pink-500/30 px-2.5 py-0.5 rounded-full";
+            } else {
+                roundBadge.className = "text-xs font-semibold bg-sky-500/20 text-sky-400 border border-sky-500/30 px-2.5 py-0.5 rounded-full";
+            }
+
+            // Phase Badge Title
+            document.getElementById('phaseText').innerText = `${step.name}`;
+            const phaseIcon = document.getElementById('phaseIcon');
+            phaseIcon.setAttribute('data-lucide', step.icon);
+
+            // Timer display
+            const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+            const s = (timeLeft % 60).toString().padStart(2, '0');
+            document.getElementById('timeDisplay').innerText = `${m}:${s}`;
+
+            // Progress bar
+            const percent = ((totalStepDuration - timeLeft) / totalStepDuration) * 100;
+            const progressBar = document.getElementById('stepProgressBar');
+            progressBar.style.width = `${percent}%`;
+            progressBar.className = currentRound === 6 ? 'bg-pink-500 h-full transition-all duration-300' : 'bg-sky-500 h-full transition-all duration-300';
+
+            updateTimelineUI();
+            renderStepListUI();
+            lucide.createIcons();
+        }
+
+        // --- Core Button & State Handling ---
+        function handleMainAction() {
+            // Unlock audio context on user touch/click
+            initAudio();
+
+            const mainBtn = document.getElementById('mainBtn');
+            const mainBtnText = document.getElementById('mainBtnText');
+            const timerCard = document.getElementById('mainTimerCard');
+
+            if (appState === 'IDLE' || appState === 'PAUSED') {
+                // Start / Resume Timer
+                appState = 'RUNNING';
+                mainBtnText.innerText = "พักชั่วคราว";
+                mainBtn.className = "w-full py-4 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-slate-950 font-bold text-lg shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2";
+                timerCard.classList.add('timer-active');
+                
+                logActivity(`เริ่มจับเวลา: ${getCurrentStep().name} (รอบ ${currentRound})`);
+
+                timerInterval = setInterval(() => {
+                    if (timeLeft > 0) {
+                        timeLeft--;
+                        updateDisplay();
+                    } else {
+                        handleStepFinished();
+                    }
+                }, 1000);
+
+            } else if (appState === 'RUNNING') {
+                // Pause Timer
+                clearInterval(timerInterval);
+                appState = 'PAUSED';
+                mainBtnText.innerText = "ทำต่อ";
+                mainBtn.className = "w-full py-4 px-6 rounded-2xl bg-sky-500 hover:bg-sky-400 active:scale-[0.98] text-slate-950 font-bold text-lg shadow-lg shadow-sky-500/20 transition-all flex items-center justify-center gap-2";
+                timerCard.classList.remove('timer-active');
+                
+                logActivity(`พักเวลาชั่วคราว`);
+
+            } else if (appState === 'FINISHED_STEP') {
+                // Advance to Next Step
+                advanceToNextStep();
+            }
+        }
+
+        function handleStepFinished() {
+            clearInterval(timerInterval);
+            appState = 'FINISHED_STEP';
+
+            const finishedStep = getCurrentStep();
+            logActivity(`✅ เสร็จสิ้น: ${finishedStep.name} (รอบ ${currentRound})`);
+
+            // Alert via Sound + Vibration
+            playThreeBellChimes();
+            triggerVibration();
+
+            // UI Changes for step completion
+            const timerCard = document.getElementById('mainTimerCard');
+            timerCard.classList.remove('timer-active');
+
+            document.getElementById('timeDisplay').innerText = "00:00";
+            document.getElementById('phaseText').innerText = `หมดเวลา: ${finishedStep.name}!`;
+
+            const mainBtn = document.getElementById('mainBtn');
+            const mainBtnText = document.getElementById('mainBtnText');
+            mainBtnText.innerText = "ขั้นตอนถัดไป ➔";
+            mainBtn.className = "w-full py-4 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-bold text-lg shadow-lg shadow-emerald-500/30 transition-all flex items-center justify-center gap-2 animate-bounce";
+        }
+
+        function advanceToNextStep() {
+            const steps = getStepsForRound(currentRound);
+            currentStepIndex++;
+
+            // If current round steps are done
+            if (currentStepIndex >= steps.length) {
+                currentRound++;
+                currentStepIndex = 0;
+
+                // Check if ALL 6 rounds completed
+                if (currentRound > 6) {
+                    appState = 'ALL_COMPLETED';
+                    logActivity(`🎉 ซักผ้าเสร็จสมบูรณ์ทั้ง 6 รอบ!`);
+
+                    document.getElementById('phaseText').innerText = "🎉 ซักผ้าเสร็จสิ้นทั้งหมด!";
+                    document.getElementById('roundBadge').innerText = "เสร็จสิ้น";
+                    document.getElementById('timeDisplay').innerText = "00:00";
+
+                    const mainBtn = document.getElementById('mainBtn');
+                    mainBtn.disabled = true;
+                    mainBtn.className = "w-full py-4 px-6 rounded-2xl bg-slate-800 text-slate-500 font-bold text-lg cursor-not-allowed flex items-center justify-center gap-2";
+                    document.getElementById('mainBtnText').innerText = "ซักผ้าเรียบร้อย";
+                    
+                    return;
+                }
+            }
+
+            // Setup next step state (Pausing until user clicks start)
+            appState = 'IDLE';
+            const nextStep = getCurrentStep();
+            timeLeft = nextStep.duration;
+            totalStepDuration = nextStep.duration;
+
+            const mainBtn = document.getElementById('mainBtn');
+            const mainBtnText = document.getElementById('mainBtnText');
+            mainBtnText.innerText = "เริ่มจับเวลา";
+            mainBtn.className = "w-full py-4 px-6 rounded-2xl bg-sky-500 hover:bg-sky-400 active:scale-[0.98] text-slate-950 font-bold text-lg shadow-lg shadow-sky-500/20 transition-all flex items-center justify-center gap-2";
+
+            updateDisplay();
+            logActivity(`เตรียมพร้อม: ${nextStep.name} (รอบ ${currentRound})`);
+        }
+
+        function confirmReset() {
+            if (confirm("คุณต้องการรีเซ็ตระบบจับเวลาซักผ้าใหม่ทั้งหมดใช่หรือไม่?")) {
+                clearInterval(timerInterval);
+                currentRound = 1;
+                currentStepIndex = 0;
+                appState = 'IDLE';
+
+                const firstStep = normalRoundSteps[0];
+                timeLeft = firstStep.duration;
+                totalStepDuration = firstStep.duration;
+
+                const mainBtn = document.getElementById('mainBtn');
+                mainBtn.disabled = false;
+                mainBtn.className = "w-full py-4 px-6 rounded-2xl bg-sky-500 hover:bg-sky-400 active:scale-[0.98] text-slate-950 font-bold text-lg shadow-lg shadow-sky-500/20 transition-all flex items-center justify-center gap-2";
+                document.getElementById('mainBtnText').innerText = "เริ่มจับเวลา";
+
+                const timerCard = document.getElementById('mainTimerCard');
+                timerCard.classList.remove('timer-active');
+
+                document.getElementById('logBox').innerHTML = `<div class="text-slate-600 italic">รีเซ็ตระบบแล้ว...</div>`;
+                updateDisplay();
+            }
+        }
+
+        // --- Audio & Vibration Helpers ---
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playThreeBellChimes() {
+            initAudio();
+            if (!audioCtx) return;
+
+            let chimeCount = 0;
+            const interval = setInterval(() => {
+                if (chimeCount >= 3) {
+                    clearInterval(interval);
+                    return;
+                }
+                
+                // Create bell synthesizer tone
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'sine';
+                // Bright high-pitch chime frequency (880Hz = A5)
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+
+                // Smooth bell envelope decay
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.6);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.6);
+
+                chimeCount++;
+            }, 400); // Trigger chime every 400ms
+        }
+
+        function toggleSoundTest() {
+            playThreeBellChimes();
+            triggerVibration();
+            logActivity("ทดสอบระบบเสียงเตือนกริ่ง 3 ครั้ง");
+        }
+
+        function triggerVibration() {
+            if ("vibrate" in navigator) {
+                // Vibration pattern: 300ms vibe, 100ms pause, repeat x 3
+                navigator.vibrate([300, 100, 300, 100, 300]);
+            }
+        }
+
+        // --- Log Utility ---
+        function logActivity(text) {
+            const logBox = document.getElementById('logBox');
+            const now = new Date();
+            const timeStr = now.toTimeString().split(' ')[0];
+
+            const entry = document.createElement('div');
+            entry.className = "text-slate-300 flex items-center justify-between";
+            entry.innerHTML = `
+                <span>• ${text}</span>
+                <span class="text-[10px] text-slate-600 font-mono">${timeStr}</span>
+            `;
+
+            if (logBox.children.length === 1 && logBox.children[0].classList.contains('italic')) {
+                logBox.innerHTML = '';
+            }
+
+            logBox.appendChild(entry);
+            logBox.scrollTop = logBox.scrollHeight;
+
+            const countEl = document.getElementById('logCount');
+            countEl.innerText = `${logBox.children.length} รายการ`;
+        }
+    </script>
+</body>
+</html>
